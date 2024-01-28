@@ -1,0 +1,304 @@
+﻿@using Domain.Enum
+@{
+	ViewData["Title"] = "Tasks";
+}
+
+<h1>Задачи</h1>
+
+
+
+<div class="mb-3">
+	<button onclick="showCreateForm()">Добавить</button>
+	<button onclick="showEditForm()">Редактировать</button>
+	<button onclick="deleteTaskOperation()">Удалить</button>
+</div>
+
+<form id="createTaskForm" style="display: none;">
+	<h4 class="mb-3 text-muted">Создание задачи</h4>	
+
+	<div class="mb-3">
+		<label class="form-label">Название задачи</label>
+		<input name="name" type="text" class="form-control" />
+	</div>
+
+	<div class="mb-3">
+		<label class="form-label">Описание задачи</label>
+		<textarea name="description" type="text" class="form-control" rows="3"></textarea>
+	</div>
+
+	<label class="form-label">Статус задачи</label>
+	<select name="statusName" class="form-select mb-3" asp-items="Html.GetEnumSelectList<StatusName>()"></select>
+	<button id="createTask" class="btn btn-primary">Создать</button>
+	<button type="button" onclick="closeCreateForm()">Закрыть</button>
+</form>
+
+<form id="editTaskForm" style="display: none;">
+	<h4 class="mb-3 text-muted">Редактирование задачи</h4>	
+
+	<div class="mb-3">
+		<label class="form-label">Название задачи</label>
+		<input name="name" type="text" class="form-control" />
+	</div>
+
+	<div class="mb-3">
+		<label class="form-label">Описание задачи</label>
+		<textarea name="description" type="text" class="form-control" rows="3"></textarea>
+	</div>
+
+	<label class="form-label">Статус задачи</label>
+	<select name="statusName" class="form-select mb-3" asp-items="Html.GetEnumSelectList<StatusName>()"></select>
+	<button id="editTask" class="btn btn-primary">Редактировать</button>
+	<button type="button" onclick="closeEditForm()">Закрыть</button>
+</form>
+
+<br />
+
+<h2>Поиск</h2>
+<div class="row">
+	<div class="form-group col-md-6">
+		<label class="col-form-label">Наименование</label>
+		<input name="nameTask" type="text" class="form-control" />
+	</div>
+	<div class="form-group col-md-6">
+		<label class="col-form-label">Статус</label>
+		<select id="statusSearch" class="form-control mb-3" asp-items="Html.GetEnumSelectList<StatusName>()">
+			<option value="">Выбрать статус</option>
+		</select>
+	</div>
+</div>
+
+<br />
+
+<table class="table table-dark table-hover" id="taskTableId">
+	<thead>
+		<tr>
+			<th style="width: 150px;">>Наименование</th>
+			<th style="width: 200px;">>Описание</th>
+			<th style="width: 100px;">>Статус</th>
+		</tr>
+	</thead>
+	<tbody></tbody>
+</table>
+
+@section Scripts
+{
+<script type="text/javascript" src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+
+	const swalWithBootstrapButtons = Swal.mixin({
+		customClass: {
+			confirmButton: "btn btn-success",
+		},
+		buttonsStyling: false
+	});
+
+	let selectedRow =null;
+
+	$('#taskTableId').on('click', 'tr', function() {
+		if ($(this).hasClass('selected')){
+			$(this).removeClass('selected');
+			selectedRow = null;
+		}
+		else {
+			$('#taskTableId tr').removeClass('selected')
+			$(this).addClass('selected');
+			selectedRow = $(this);
+			
+			if ($('#editTaskForm').is(':visible')) {
+				fillingOutFieldsEdit();
+			}
+		}
+	});
+
+	function showCreateForm() {
+		document.getElementById('createTaskForm').style.display='block';
+		document.getElementById('editTaskForm').style.display = 'none';
+	}
+
+	function fillingOutFieldsEdit() {
+		$('#editTaskForm input[name="name"]').val(selectedRow.find('td:first').text());
+		$('#editTaskForm textarea[name="description"]').val(selectedRow.find('td:eq(1)').text());
+		var statusValue = selectedRow.find('td:eq(2)').text();
+		var statusIndex = getStatusIndex(statusValue);
+		$('#editTaskForm select[name="statusName"]')[0].selectedIndex = statusIndex;
+	}
+
+	function showEditForm() {		
+		if (selectedRow) {			
+			$('#editTaskForm').show();
+			fillingOutFieldsEdit();
+			document.getElementById('createTaskForm').style.display = 'none'			
+			}		 
+		else {
+				Swal.fire({
+				title: 'Информация',
+				text: 'Выберите задачу для редактирования',
+				icon: 'error',
+				confirmButtonText: 'Окей'
+				})			
+		}	
+	}
+
+	function closeCreateForm() {
+		document.getElementById('createTaskForm').style.display = 'none';
+	}
+
+	function closeEditForm() {
+		document.getElementById('editTaskForm').style.display = 'none';
+	}
+
+	function deleteTaskOperation() {
+		if (selectedRow) {			
+			swalWithBootstrapButtons.fire({
+				title: "Вы уверены?",
+				icon: "warning",
+				confirmButtonText: "Да",
+				reverseButtons: true
+			}).then((result) => {
+				if (result.isConfirmed) {
+					var taskName = selectedRow.find('td:first').text();
+					console.log(taskName);
+
+					$.ajax({
+						type: 'DELETE',
+						url: '@Url.Action("DeleteTask")',
+						data: { name: taskName },
+						success: function (response) {
+							Swal.fire({
+								title: 'Информация',
+								text: response.description,
+								icon: 'success',
+								confirmButtonText: 'Окей'
+							})
+							dataTable.draw();
+						},
+						error: function (response) {
+							Swal.fire({
+								title: 'Информация',
+								text: response.responseJSON.description,
+								icon: 'error',
+								confirmButtonText: 'Окей'
+							})
+						}
+					})
+				}			
+			})
+		}
+		else {
+					Swal.fire({
+					title: 'Информация',
+					text: 'Выберите запись для удаления',
+					icon: 'error',
+					confirmButtonText: 'Окей'
+					})	
+				}
+	}
+
+	let dataTable = $('#taskTableId').DataTable({
+		info: false,
+		serverSide: true,
+		searching: false,
+		paging: false,
+		sorting: false,
+		ajax: {
+			url: "@Url.Action("TaskHandler")",
+			method: 'GET',
+			data: model
+		},
+		columns: [
+			{ data: 'name'},
+			{ data: 'description'},
+			{ data: 'status'},
+		],
+		
+	});
+
+	function model(){
+		return{
+			Name: $('input[name="nameTask"]').val(),
+			StatusName: $('#statusSearch option:selected').val()
+		}
+	}
+
+	$('input[name="nameTask"]').on('change', function (){
+		dataTable.draw();
+	})
+
+	$('#statusSearch').on('change', function (){
+		dataTable.draw();
+	})
+
+	$('#createTask').on('click', function (e){
+		e.preventDefault();
+		$.ajax({
+			type: 'POST',
+			url: '@Url.Action("Create", "Task")',
+			data: $('#createTaskForm').serialize(),
+			success: function (response) {
+				Swal.fire({
+					title: 'Информация',
+					text: response.description,
+					icon: 'success',
+					confirmButtonText: 'Окей'
+				})
+				dataTable.draw();
+				selectedRow=null;
+			},
+			error: function (response) {
+				 Swal.fire({
+					title: 'Информация',
+					text: response.responseJSON.description,
+					icon: 'error',
+					confirmButtonText: 'Окей'
+				 })
+			}
+		})
+		document.getElementById('createTaskForm').style.display = 'none';
+	});
+
+	$('#editTask').on('click', function (e){
+		e.preventDefault();
+		var currentName = "currentName=" + encodeURIComponent(selectedRow.find('td:first').text());
+		console.log(currentName);
+		$.ajax({
+			type: 'PUT',
+			url: '@Url.Action("Update", "Task")',
+			data: $('#editTaskForm').serialize() + '&' + currentName,
+			success: function (response) {
+				Swal.fire({
+					title: 'Информация',
+					text: response.description,
+					icon: 'success',
+					confirmButtonText: 'Окей'
+				})
+				dataTable.draw();
+				selectedRow=null;
+			},
+			error: function (response) {
+				 Swal.fire({
+					title: 'Информация',
+					text: response.responseJSON.description,
+					icon: 'error',
+					confirmButtonText: 'Окей'
+				 })
+			}
+		})
+		document.getElementById('editTaskForm').style.display = 'none';
+	});
+
+	function getStatusIndex(statusValue) {
+		switch (statusValue) {
+			case "Добавлена":
+				return 0;
+			case "В работе":
+				return 1;
+			case "Завершена":
+				return 2;
+			default:
+				return 0; 
+		}
+	}
+
+</script>
+}
